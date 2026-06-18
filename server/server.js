@@ -2,16 +2,11 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import authRoutes from './src/routes/auth.js';
 import leadRoutes from './src/routes/leads.js';
 
 const app = express();
 const port = process.env.PORT || 5002;
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 app.use(
   cors({
@@ -36,17 +31,9 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/leads', leadRoutes);
 
-const clientDist = path.join(__dirname, '..', 'dist');
-if (fs.existsSync(clientDist)) {
-  app.use(express.static(clientDist));
-  app.get('/{*splat}', (req, res) => {
-    res.sendFile(path.join(clientDist, 'index.html'));
-  });
-} else {
-  app.get('/', (req, res) => {
-    res.json({ ok: true, service: 'mini-crm-api' });
-  });
-}
+app.get('/', (req, res) => {
+  res.json({ ok: true, service: 'mini-crm-api', dashboard: process.env.CLIENT_ORIGIN });
+});
 
 async function start() {
   if (!process.env.MONGO_URI) {

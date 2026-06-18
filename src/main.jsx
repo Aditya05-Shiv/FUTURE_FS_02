@@ -16,7 +16,14 @@ import {
 } from 'lucide-react';
 import './styles.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5002/api';
+function normalizeApiUrl(value) {
+  if (!value) return '/api';
+  const cleanValue = value.replace(/\/+$/, '');
+  return cleanValue.endsWith('/api') ? cleanValue : `${cleanValue}/api`;
+}
+
+const API_URL = normalizeApiUrl(import.meta.env.VITE_API_URL);
+const LOCAL_API_URL = 'http://localhost:5002/api';
 const statuses = ['new', 'contacted', 'converted'];
 const statusLabels = {
   new: 'New',
@@ -29,6 +36,33 @@ function authHeaders(token) {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`
   };
+}
+
+async function readJson(response) {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (!contentType.includes('application/json')) {
+    throw new Error('API server se JSON response nahi mila. Backend running hai ya VITE_API_URL check karo.');
+  }
+
+  return response.json();
+}
+
+async function apiRequest(path, options = {}) {
+  const bases = API_URL === LOCAL_API_URL ? [API_URL] : [API_URL, LOCAL_API_URL];
+  let lastError;
+
+  for (const base of bases) {
+    try {
+      const response = await fetch(`${base}${path}`, options);
+      const data = await readJson(response);
+      return { response, data };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
 }
 
 function App() {
@@ -67,12 +101,11 @@ function Login({ onLogin }) {
     setError('');
 
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
+      const { response, data } = await apiRequest('/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       });
-      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.message || 'Login failed');
@@ -156,10 +189,9 @@ function Dashboard({ token, admin, onLogout }) {
     if (search.trim()) params.set('search', search.trim());
 
     try {
-      const response = await fetch(`${API_URL}/leads?${params}`, {
+      const { response, data } = await apiRequest(`/leads?${params}`, {
         headers: authHeaders(token)
       });
-      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.message || 'Could not load leads');
@@ -175,7 +207,7 @@ function Dashboard({ token, admin, onLogout }) {
   }
 
   async function updateStatus(leadId, status) {
-    const response = await fetch(`${API_URL}/leads/${leadId}/status`, {
+    const { response } = await apiRequest(`/leads/${leadId}/status`, {
       method: 'PATCH',
       headers: authHeaders(token),
       body: JSON.stringify({ status })
@@ -190,7 +222,7 @@ function Dashboard({ token, admin, onLogout }) {
     event.preventDefault();
     if (!selectedLead || !noteText.trim()) return;
 
-    const response = await fetch(`${API_URL}/leads/${selectedLead._id}/notes`, {
+    const { response } = await apiRequest(`/leads/${selectedLead._id}/notes`, {
       method: 'POST',
       headers: authHeaders(token),
       body: JSON.stringify({ text: noteText })
@@ -203,7 +235,7 @@ function Dashboard({ token, admin, onLogout }) {
   }
 
   async function removeLead(leadId) {
-    const response = await fetch(`${API_URL}/leads/${leadId}`, {
+    const { response } = await apiRequest(`/leads/${leadId}`, {
       method: 'DELETE',
       headers: authHeaders(token)
     });
@@ -313,7 +345,7 @@ function Dashboard({ token, admin, onLogout }) {
   );
 
   async function seedLead() {
-    await fetch(`${API_URL}/leads`, {
+    await apiRequest('/leads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
     "server:dev": "nodemon server/server.js",
-    "client:dev": "vite --host 0.0.0.0",
+    "client:dev": "vite --host 0.0.0.0 --port 5176 --strictPort",
     "build": "vite build",
     "start": "node server/server.js"
   },
